@@ -1,0 +1,283 @@
+@import "tailwindcss";
+
+/*
+ * TEAM PULSE design tokens.
+ *
+ * Light throughout — participants, facilitator and projector all sit on warm
+ * white. A workshop projected in a lit meeting room reads better on white than
+ * on black, and the product should feel like a premium workshop rather than a
+ * BI dashboard. Nothing here inherits the viewer's OS theme, because a session
+ * must look the same on every device in the room.
+ */
+@theme {
+  /* Surfaces */
+  --color-paper: #fbfaf7;
+  --color-paper-2: #f4f2ed;
+  --color-surface: #ffffff;
+  --color-night: #08080c;
+  --color-night-2: #101119;
+  --color-night-3: #191b26;
+
+  /* Ink */
+  --color-ink: #0c0d12;
+  --color-ink-2: #4a4d57;
+  /* All ink/chalk steps below clear 4.5:1 against the surface they are used
+     on — checked, not eyeballed. See README for the contrast table. */
+  --color-ink-3: #6e727a;
+  --color-ink-4: #c7c9cf;
+  --color-chalk: #f7f7fa;
+  --color-chalk-2: #a9adba;
+  --color-chalk-3: #75798c;
+
+  /* Accents */
+  --color-cobalt: #1e3ef0;
+  --color-cobalt-lift: #5772ff;
+  --color-cobalt-deep: #0d1f9e;
+  --color-cobalt-wash: #eef1ff;
+  --color-amber: #f2a61a;
+  --color-amber-lift: #ffc45c;
+  --color-amber-deep: #9f6200;
+  --color-amber-wash: #fff6e6;
+  /* Money. Round 4 is denominated in US dollars, so it is green — never the
+     brand amber, which would read as a generic highlight rather than cash. */
+  --color-money: #177a4f;
+  --color-money-deep: #0e5233;
+  --color-money-lift: #34a66f;
+  --color-money-wash: #eaf6f0;
+
+  --color-positive: #0fa968;
+  /* The -deep steps exist because the base colours are tuned for solid fills
+     and white text; on their own pale washes they do not reach 4.5:1. */
+  --color-positive-deep: #007f3e;
+  --color-positive-wash: #e8f8f0;
+  --color-alert: #e5484d;
+  --color-alert-deep: #cc2f34;
+  --color-alert-wash: #fdeeee;
+
+  /* Type */
+  --font-display: var(--font-inter-tight), "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-inter-tight), "Helvetica Neue", Arial, sans-serif;
+  --font-serif: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+
+  /* Projector type scale — sized to be read from the back of a room. */
+  --text-stage-xs: clamp(0.95rem, 1.1vw, 1.35rem);
+  --text-stage-sm: clamp(1.15rem, 1.5vw, 1.9rem);
+  --text-stage-md: clamp(1.6rem, 2.4vw, 3rem);
+  --text-stage-lg: clamp(2.2rem, 3.6vw, 4.6rem);
+  --text-stage-xl: clamp(3rem, 5.6vw, 7.5rem);
+  --text-stage-2xl: clamp(3.8rem, 8vw, 11rem);
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Depth — restrained; two levels, not five. */
+  --shadow-lift: 0 1px 2px rgb(12 13 18 / 0.04), 0 8px 24px -12px rgb(12 13 18 / 0.14);
+  --shadow-raise: 0 2px 4px rgb(12 13 18 / 0.05), 0 24px 60px -24px rgb(12 13 18 / 0.24);
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+  }
+
+  /* Focus that is visible on both paper and night surfaces. */
+  :focus-visible {
+    outline: 3px solid var(--color-cobalt);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--color-cobalt);
+    color: white;
+  }
+
+  /* Tabular figures everywhere a number animates, so counters do not jitter. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+@layer utilities {
+  .display-tight {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 0.92;
+  }
+
+  .display-loose {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.04;
+  }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .stage-eyebrow {
+    font-size: clamp(0.75rem, 0.95vw, 1.05rem);
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+
+  .serif-accent {
+    font-family: var(--font-serif);
+    font-style: italic;
+    letter-spacing: -0.01em;
+  }
+
+  /* Fine grain over night surfaces — keeps large dark areas from banding. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.5;
+    mix-blend-mode: overlay;
+    background-image: radial-gradient(rgb(255 255 255 / 0.09) 0.5px, transparent 0.5px);
+    background-size: 3px 3px;
+  }
+
+  .safe-bottom {
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+
+  /*
+   * Range inputs for the 100-point round. The native track is hidden and the
+   * filled bar is drawn behind the input, so the fill can be tinted per value
+   * while the thumb stays a real, focusable, keyboard-operable native control.
+   * The thumb takes its colour from `color`, set inline per row.
+   */
+  .tp-range {
+    appearance: none;
+    background: transparent;
+  }
+  .tp-range::-webkit-slider-runnable-track {
+    background: transparent;
+    height: 100%;
+  }
+  .tp-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    background: currentColor;
+    border: 3px solid var(--color-surface);
+    box-shadow: 0 1px 6px rgb(12 13 18 / 0.28);
+    cursor: grab;
+    /* Centres the thumb on a track that is the full height of the input. */
+    margin-top: 0;
+  }
+  .tp-range:active::-webkit-slider-thumb {
+    cursor: grabbing;
+  }
+  .tp-range::-moz-range-track {
+    background: transparent;
+    height: 100%;
+  }
+  .tp-range::-moz-range-thumb {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    background: currentColor;
+    border: 3px solid var(--color-surface);
+    box-shadow: 0 1px 6px rgb(12 13 18 / 0.28);
+    cursor: grab;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+}
+
+/* A slow ambient pulse used on waiting states and the final screen. */
+@keyframes tp-pulse-ring {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@keyframes tp-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes tp-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: tp-pulse-ring 2.8s var(--ease-out-soft) infinite;
+}
+.animate-breathe {
+  animation: tp-breathe 3.6s var(--ease-in-out-soft) infinite;
+}
+.animate-drift {
+  animation: tp-drift 7s var(--ease-in-out-soft) infinite;
+}
+
+/*
+ * Reduced motion: strip decoration, keep meaning. Bars still reach their final
+ * width and counters still land on their final number — they just get there
+ * without the journey.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
