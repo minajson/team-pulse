@@ -5,6 +5,7 @@ import {
   getQuestion,
   optionIdsFor,
   QUESTIONS,
+  selectionBounds,
   STEP_COUNT,
   stepQuestion,
   type Question,
@@ -219,7 +220,8 @@ function normalizeResponse(
   const valid = new Set(optionIdsFor(question));
 
   if (question.kind === "open-text") {
-    const check = validateWords(payload.text, question.maxWords ?? 6);
+    const maxWords = question.selection.mode === "text" ? question.selection.maxWords : 6;
+    const check = validateWords(payload.text, maxWords);
     if (!check.ok) throw new SessionError(check.error ?? "Invalid response.", 422);
     return {
       optionIds: [],
@@ -230,7 +232,7 @@ function normalizeResponse(
   }
 
   if (question.kind === "points") {
-    const total = question.pointsTotal ?? 100;
+    const total = question.selection.mode === "points" ? question.selection.total : 100;
     const raw = payload.points;
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
       throw new SessionError("Invalid allocation.", 422);
@@ -258,16 +260,29 @@ function normalizeResponse(
       ? [payload.optionIds]
       : [];
 
-  const need = question.selectCount ?? 1;
-  if (ids.length !== need) {
+  const bounds = selectionBounds(question);
+  if (!bounds) throw new SessionError("Invalid response.", 422);
+
+  if (ids.length < bounds.min || ids.length > bounds.max) {
     throw new SessionError(
-      need === 1 ? "Choose one option." : `Choose exactly ${need} options.`,
+      bounds.min === bounds.max
+        ? bounds.min === 1
+          ? "Choose one option."
+          : `Choose exactly ${bounds.min} options.`
+        : `Choose between ${bounds.min} and ${bounds.max} options.`,
       422,
     );
   }
   for (const id of ids) {
     if (!valid.has(id)) throw new SessionError("Unknown option.", 422);
   }
+
+  /*
+   * Stored as submitted, always — including round 3, where the participant
+   * picks three people to take. Recording what they actually did keeps the
+   * echo-back correct on reconnect and keeps the CSV honest; the inversion to
+   * "who was left behind" happens once, at tally time.
+   */
   return { optionIds: ids, points: null, text: null, moderation: "approved" };
 }
 

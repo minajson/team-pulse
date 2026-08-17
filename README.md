@@ -54,6 +54,40 @@ and the online half diverge by more than the configured threshold (default 20
 points, needs at least 3 responses per side so one remote participant can't
 trigger it). Both the callouts and the threshold are facilitator settings.
 
+## How each question is answered
+
+Every question declares its own `selection` metadata, and validation, the tally
+and the input component all read that same field — so the phone, the server and
+the chart cannot disagree about what a valid answer is. `npm run audit:questions`
+prints the current map:
+
+| Question | Selection mode | Rule |
+| --- | --- | --- |
+| R1 Q1–Q5, R2 Q1–Q4, R6 Q1 | single-select | exactly 1 — tapping another replaces it |
+| R3 Q1 | multi-select | exactly 3 — **stores the option NOT picked** |
+| R4 Q1 | multi-select | exactly 2 |
+| R5 Q1 | slider allocation | must total 100 |
+| R6 Q2 | free text | 1–6 words, moderated |
+| R6 Q2 wall | heart / reaction | one heart per person per statement |
+
+Two of these are worth knowing about:
+
+**Round 3 asks the question twice, differently.** The projector asks "who stays
+behind?" because that is what the room discusses. The phone asks participants to
+*select three people for the project*, because picking a team is the decision
+they are actually making — and nominating a colleague to exclude is a needlessly
+uncomfortable way to collect the same data. The one they leave out is derived at
+tally time, so the round's insight is unchanged. Responses are stored as
+submitted, which keeps the echo-back correct on refresh and the CSV honest.
+
+**At the maximum, an extra tap is refused, not absorbed.** Both multi-select
+rounds show "choose only N — deselect one first" rather than silently evicting an
+earlier pick. Quietly dropping a deliberate choice is worse than a moment of
+friction: nobody notices until after they have submitted the wrong answer.
+
+Multi-select never auto-submits — the answer is only meaningful once complete, so
+it is confirmed with a button. Single-select still submits on tap.
+
 ## Adding rounds and question packs
 
 `src/lib/content/session-plan.ts` is the single source of truth for session
@@ -187,6 +221,7 @@ npm run test:e2e     # in a second terminal
 
 ```bash
 npm run test:overlay # in the same second terminal
+npm run audit:questions
 ```
 
 62 checks covering the live transport, reconnection, answer validation for every

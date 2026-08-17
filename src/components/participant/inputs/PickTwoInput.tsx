@@ -1,17 +1,20 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+import { useMultiSelect } from "@/lib/client/useMultiSelect";
 import type { Question } from "@/lib/content/session-plan";
 import { slideUp, springSnappy, stagger } from "@/lib/motion/primitives";
 import { useSound } from "@/lib/sound/SoundProvider";
 
 /**
- * The $10,000 round. Selection is capped at two: picking a third replaces the
- * oldest choice rather than showing an error, because being told "no" after a
- * tap is worse than the app quietly doing the obvious thing.
+ * The $10,000 round — pick exactly two places to invest.
+ *
+ * A third tap is refused with a message rather than silently replacing an
+ * earlier pick. Quietly dropping a choice someone deliberately made is worse
+ * than a moment of friction: they would not notice until after submitting, and
+ * the recorded answer would not be the one they thought they gave.
  */
 export function PickTwoInput({
   question,
@@ -24,50 +27,15 @@ export function PickTwoInput({
   disabled: boolean;
   onSubmit: (optionIds: string[]) => void;
 }) {
-  const need = question.selectCount ?? 2;
-  const [picks, setPicks] = useState<string[]>(selected);
-  const [dirty, setDirty] = useState(false);
   const { play } = useSound();
-
-  /*
-   * Reconciling server state into local edit state during render, rather than
-   * in an effect. This is the documented way to derive state from props: the
-   * effect version renders once with a stale value and then again with the
-   * fresh one, and on a reveal that shows as a visible flicker.
-   *
-   * `dirty` means "this participant is mid-change", and their in-progress edit
-   * always wins over an incoming frame.
-   */
-  const serverKey = selected.join("|");
-  const [seenKey, setSeenKey] = useState(serverKey);
-  if (!dirty && serverKey !== seenKey) {
-    setSeenKey(serverKey);
-    setPicks(selected);
-  }
-
-  const toggle = (id: string) => {
-    setDirty(true);
-    setPicks((current) => {
-      if (current.includes(id)) {
-        play("select");
-        return current.filter((x) => x !== id);
-      }
-      play("moneyFlick");
-      const next = [...current, id];
-      return next.length > need ? next.slice(next.length - need) : next;
-    });
-  };
-
-  const complete = picks.length === need;
-  const unchanged =
-    complete && picks.length === selected.length && picks.every((p) => selected.includes(p));
+  const sel = useMultiSelect(question, selected);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-2xl bg-money-wash px-5 py-4 text-center ring-1 ring-money/25 ring-inset">
         <p className="display-tight tnum text-4xl text-money">$10,000</p>
-        <p className="mt-1 text-sm font-semibold text-money-deep">
-          Choose {need}. {picks.length}/{need} selected.
+        <p className="mt-1 text-sm font-semibold text-money-deep" role="status" aria-live="polite">
+          {sel.counterLabel}
         </p>
       </div>
 
@@ -80,13 +48,16 @@ export function PickTwoInput({
         aria-labelledby={`question-${question.id}`}
       >
         {(question.options ?? []).map((option) => {
-          const active = picks.includes(option.id);
+          const active = sel.isPicked(option.id);
           return (
             <motion.li key={option.id} variants={slideUp}>
               <motion.button
                 aria-pressed={active}
                 disabled={disabled}
-                onClick={() => toggle(option.id)}
+                onClick={() => {
+                  play(active ? "select" : "moneyFlick");
+                  sel.toggle(option.id);
+                }}
                 animate={active ? { scale: 1.015 } : { scale: 1 }}
                 transition={springSnappy}
                 className={cn(
@@ -130,22 +101,36 @@ export function PickTwoInput({
         })}
       </motion.ul>
 
+      <AnimatePresence>
+        {sel.notice && (
+          <motion.p
+            role="status"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="rounded-xl bg-amber-wash px-4 py-3 text-sm font-semibold text-amber-deep ring-1 ring-amber/30 ring-inset"
+          >
+            {sel.notice}
+          </motion.p>
+        )}
+      </AnimatePresence>
+
       <div className="safe-bottom sticky bottom-0 -mx-5 bg-gradient-to-t from-paper via-paper to-transparent px-5 pt-5 pb-2">
         <Button
           size="lg"
           block
           variant="money"
-          disabled={disabled || !complete || unchanged}
+          disabled={disabled || !sel.complete || sel.unchanged}
           onClick={() => {
-            setDirty(false);
-            onSubmit(picks);
+            sel.markSubmitted();
+            onSubmit(sel.picks);
           }}
         >
-          {unchanged
+          {sel.unchanged
             ? "Locked in"
-            : complete
+            : sel.complete
               ? "Invest the $10,000"
-              : `Pick ${need - picks.length} more`}
+              : `Pick ${sel.max - sel.picks.length} more`}
         </Button>
       </div>
     </div>

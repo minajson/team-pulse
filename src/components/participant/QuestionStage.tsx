@@ -76,7 +76,7 @@ export function QuestionStage({
           className="display-loose text-[clamp(1.6rem,6.5vw,2.1rem)] text-balance"
           id={`question-${question.id}`}
         >
-          {question.prompt}
+          {question.participantPrompt ?? question.prompt}
         </h1>
       </motion.div>
 
@@ -93,7 +93,7 @@ export function QuestionStage({
             question={question}
             selected={you?.optionIds ?? []}
             disabled={locked}
-            onSelect={(optionId) => submit({ optionIds: [optionId] })}
+            onSubmit={(optionIds) => submit({ optionIds })}
           />
         ) : question.kind === "pick-two" ? (
           <PickTwoInput
@@ -200,12 +200,15 @@ function describeAnswer(question: Question, you: PublicSessionState["you"]): str
     return top || null;
   }
   if (you.optionIds.length > 0) {
+    // Profiles are listed by name alone once there are several of them —
+    // "Nory — The Expert · Dove — The Team Player · …" is unreadable on a phone.
+    const many = you.optionIds.length > 1;
     return you.optionIds
       .map((id) => {
         const option = question.options?.find((o) => o.id === id);
         if (option) return `${option.emoji ? `${option.emoji} ` : ""}${option.label}`;
         const profile = question.profiles?.find((p) => p.id === id);
-        if (profile) return `${profile.name} — ${profile.title}`;
+        if (profile) return many ? profile.name : `${profile.name} — ${profile.title}`;
         return id;
       })
       .join(" · ");

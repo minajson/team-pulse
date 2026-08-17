@@ -162,6 +162,72 @@ const late = await post(
 );
 check("late response rejected after reveal", late.status === 409, `status ${late.status}`);
 
+// ---- selection modes -------------------------------------------------
+//
+// Each question declares how it is answered (single / exactly-N / points /
+// text). These check the server enforces that declaration, because the input
+// component and the validator reading the same metadata is the only thing
+// keeping the phone and the tally in agreement.
+
+// Round 3 — exactly THREE, and the tally records the one NOT chosen.
+await post(`/api/sessions/${code}/control`, { command: { type: "goto", stepIndex: 9 } }, hdrHost);
+const step9 = await get(`/api/sessions/${code}`);
+check("step 9 is the profile round", step9.data.step?.questionId === "r3q1", JSON.stringify(step9.data.step));
+
+const hdrFor = (p) => ({ "x-participant-id": p.participantId, "x-participant-secret": p.secret });
+const pick3 = (ids) => post(`/api/sessions/${code}/respond`, { questionId: "r3q1", optionIds: ids }, hdrFor(participants[0]));
+
+check("round 3 rejects one profile", (await pick3(["nory"])).status === 422);
+check("round 3 rejects two profiles", (await pick3(["nory", "dove"])).status === 422);
+check("round 3 rejects all four profiles", (await pick3(["nory", "dove", "nia", "ria"])).status === 422);
+check("round 3 rejects an unknown profile", (await pick3(["nory", "dove", "ghost"])).status === 422);
+check("round 3 accepts exactly three", (await pick3(["nory", "dove", "nia"])).status === 200);
+
+// The participant's own echo must be what they picked, not the inverse —
+// otherwise a refresh mid-round would restore the wrong three cards.
+const mine3 = await get(`/api/sessions/${code}?participantId=${participants[0].participantId}`);
+check(
+  "round 3 echoes back the three chosen",
+  ["nory", "dove", "nia"].every((id) => mine3.data.you.optionIds.includes(id)) &&
+    mine3.data.you.optionIds.length === 3,
+  JSON.stringify(mine3.data.you.optionIds),
+);
+
+// Everyone else takes a different three, leaving a different person behind.
+for (const p of participants.slice(1, 5)) {
+  await post(`/api/sessions/${code}/respond`, { questionId: "r3q1", optionIds: ["dove", "nia", "ria"] }, hdrFor(p));
+}
+await post(`/api/sessions/${code}/control`, { command: { type: "reveal" } }, hdrHost);
+const r3 = await get(`/api/sessions/${code}`);
+const leftBehind = Object.fromEntries(r3.data.results.options.map((o) => [o.optionId, o.count]));
+check(
+  "tally counts the profile left behind, not the ones taken",
+  leftBehind.ria === 1 && leftBehind.nory === 4 && leftBehind.dove === 0 && leftBehind.nia === 0,
+  JSON.stringify(leftBehind),
+);
+const r3pct = r3.data.results.options.reduce((sum, o) => sum + o.pct, 0);
+check("round 3 percentages sum to 100 (one left behind each)", Math.abs(r3pct - 100) < 0.001, r3pct.toFixed(3));
+
+// Round 6 Q1 — single-select must replace, never accumulate.
+await post(`/api/sessions/${code}/control`, { command: { type: "goto", stepIndex: 12 } }, hdrHost);
+const step12 = await get(`/api/sessions/${code}`);
+check("step 12 is the single-select priority question", step12.data.step?.questionId === "r6q1");
+await post(`/api/sessions/${code}/respond`, { questionId: "r6q1", optionIds: ["communication"] }, hdrFor(participants[0]));
+await post(`/api/sessions/${code}/respond`, { questionId: "r6q1", optionIds: ["collaboration"] }, hdrFor(participants[0]));
+const singleEcho = await get(`/api/sessions/${code}?participantId=${participants[0].participantId}`);
+check(
+  "single-select replaces rather than accumulating",
+  singleEcho.data.you.optionIds.length === 1 && singleEcho.data.you.optionIds[0] === "collaboration",
+  JSON.stringify(singleEcho.data.you.optionIds),
+);
+check(
+  "changing a single-select answer does not add a second response",
+  singleEcho.data.counts.responses === 1,
+  String(singleEcho.data.counts.responses),
+);
+const twoAtOnce = await post(`/api/sessions/${code}/respond`, { questionId: "r6q1", optionIds: ["trust", "listening"] }, hdrFor(participants[0]));
+check("single-select rejects two options", twoAtOnce.status === 422, `status ${twoAtOnce.status}`);
+
 // ---- validation ----------------------------------------------------
 await post(`/api/sessions/${code}/control`, { command: { type: "goto", stepIndex: 10 } }, hdrHost); // r4q1 ($10k)
 const step10 = await get(`/api/sessions/${code}`);

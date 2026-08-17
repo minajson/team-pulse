@@ -29,7 +29,7 @@ export function PointsInput({
   onSubmit: (points: Record<string, number>) => void;
 }) {
   const values = useMemo(() => question.values ?? [], [question.values]);
-  const total = question.pointsTotal ?? 100;
+  const total = question.selection.mode === "points" ? question.selection.total : 100;
 
   const blank = useMemo(
     () => Object.fromEntries(values.map((v) => [v.id, 0])) as Record<string, number>,

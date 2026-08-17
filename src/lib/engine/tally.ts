@@ -1,4 +1,4 @@
-import { optionIdsFor, type Question } from "@/lib/content/session-plan";
+import { optionIdsFor, storesExcluded, type Question } from "@/lib/content/session-plan";
 import type {
   OptionTally,
   PointsTally,
@@ -54,13 +54,22 @@ export function tallyQuestion(session: SessionRecord, question: Question): Quest
   }
 
   const ids = optionIdsFor(question);
-  const multi = (question.selectCount ?? 1) > 1;
+  const invert = storesExcluded(question);
+  /*
+   * Round 3 inverts: the participant picks three to take, so each response
+   * contributes exactly one "left behind". That makes it single-select for
+   * counting purposes even though the input is multi-select.
+   */
+  const multi =
+    !invert && question.selection.mode === "multiple" && question.selection.max > 1;
 
   const tick = (list: ResponseRecord[]) => {
     const counts = new Map<string, number>(ids.map((id) => [id, 0]));
     let selections = 0;
     for (const r of list) {
-      for (const id of r.optionIds) {
+      const chosen = new Set(r.optionIds);
+      const counted = invert ? ids.filter((id) => !chosen.has(id)) : r.optionIds;
+      for (const id of counted) {
         if (!counts.has(id)) continue;
         counts.set(id, (counts.get(id) ?? 0) + 1);
         selections += 1;

@@ -110,10 +110,20 @@ export function simulatedResponses(question: Question, mode: JoinMode): Simulate
 
   switch (question.kind) {
     case "single":
-    case "split":
-    case "profile": {
+    case "split": {
       const weights = weightsFor(question, mode, ids.length);
       return { optionIds: [pickWeighted(ids, weights)], points: null, text: null };
+    }
+
+    case "profile": {
+      /*
+       * Round 3 records three people taken, not one left behind. The weights
+       * describe who gets left behind, so pick that one and return the rest —
+       * keeping simulated data in exactly the shape a real phone submits.
+       */
+      const weights = weightsFor(question, mode, ids.length);
+      const leftBehind = pickWeighted(ids, weights);
+      return { optionIds: ids.filter((id) => id !== leftBehind), points: null, text: null };
     }
 
     case "pick-two": {
@@ -129,7 +139,7 @@ export function simulatedResponses(question: Question, mode: JoinMode): Simulate
     }
 
     case "points": {
-      const total = question.pointsTotal ?? 100;
+      const total = question.selection.mode === "points" ? question.selection.total : 100;
       const values = question.values ?? [];
       const raw = values.map((v) => {
         const bias = DNA_BIAS[v.id] ?? 100 / Math.max(1, values.length);

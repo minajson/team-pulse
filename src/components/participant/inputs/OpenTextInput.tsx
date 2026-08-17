@@ -26,7 +26,7 @@ export function OpenTextInput({
   disabled: boolean;
   onSubmit: (text: string) => void;
 }) {
-  const max = question.maxWords ?? 6;
+  const max = question.selection.mode === "text" ? question.selection.maxWords : 6;
   const [text, setText] = useState(initial);
   const [dirty, setDirty] = useState(false);
 

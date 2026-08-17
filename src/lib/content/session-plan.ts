@@ -52,6 +52,37 @@ export interface ValueDef {
   hue: number;
 }
 
+/**
+ * How a question is answered.
+ *
+ * Declared per question rather than inferred from the round or the renderer,
+ * because those two are not the same thing: rounds 3 and 4 both pick several
+ * options but look nothing alike, and round 3 stores the inverse of what the
+ * participant taps. Validation, the tally and the input component all read
+ * this, so behaviour cannot drift between them.
+ */
+export type Selection =
+  /** Exactly one option. Tapping another replaces it. */
+  | { mode: "single" }
+  | {
+      /** Between `min` and `max` options; equal values mean "exactly N". */
+      mode: "multiple";
+      min: number;
+      max: number;
+      /**
+       * "chosen"   — record what they picked (default).
+       * "excluded" — record the options they did *not* pick.
+       *
+       * Round 3 asks the participant to choose three people to take, but the
+       * insight the room discusses is who got left behind. Rather than asking
+       * the question backwards on the phone, the participant picks the three
+       * they want and the tally counts the one they did not.
+       */
+      store?: "chosen" | "excluded";
+    }
+  | { mode: "points"; total: number }
+  | { mode: "text"; maxWords: number };
+
 export interface Question {
   id: string;
   roundId: RoundId;
@@ -63,15 +94,17 @@ export interface Question {
   kicker?: string;
   /** Facilitator discussion prompt, revealed in discuss mode. */
   discussPrompt?: string;
+  /**
+   * Wording for phones, when it differs from the projector's. Round 3 asks
+   * "who stays behind?" on the big screen but "select three people" on the
+   * phone — same question, stated the way each audience needs it.
+   */
+  participantPrompt?: string;
   options?: Option[];
   profiles?: Profile[];
   values?: ValueDef[];
-  /** For "pick-two": how many must be chosen. */
-  selectCount?: number;
-  /** For "points": the total that must be allocated. */
-  pointsTotal?: number;
-  /** For "open-text". */
-  maxWords?: number;
+  /** The single source of truth for how this question is answered. */
+  selection: Selection;
   textPrefix?: string;
 }
 
@@ -101,6 +134,7 @@ const single = (
   short,
   prompt,
   discussPrompt,
+  selection: { mode: "single" },
   options: labels.map((label, i) => ({
     id: `${id}-${abcd[i].toLowerCase()}`,
     marker: abcd[i],
@@ -121,6 +155,7 @@ const split = (
   short,
   prompt,
   discussPrompt,
+  selection: { mode: "single" },
   options: labels.map((label, i) => ({
     id: `${id}-${abcd[i].toLowerCase()}`,
     marker: abcd[i],
@@ -327,9 +362,13 @@ const roundWhoWouldYouPick: Round = {
       kind: "profile",
       short: "Q1",
       kicker: "You have ONE critical project.",
+      // The projector asks the question that starts the conversation…
       prompt: "Who stays behind?",
+      // …while the phone asks for the choice that is actually being made.
+      participantPrompt: "Select 3 people for the project",
       discussPrompt: "Why did we leave this person behind?",
       profiles: PROFILES,
+      selection: { mode: "multiple", min: 3, max: 3, store: "excluded" },
     },
   ],
 };
@@ -363,7 +402,7 @@ const roundTenThousand: Round = {
       prompt: "You can invest in ONLY TWO things.",
       discussPrompt: "What does where we put our money say about what we value?",
       options: INVESTMENTS,
-      selectCount: 2,
+      selection: { mode: "multiple", min: 2, max: 2 },
     },
   ],
 };
@@ -399,7 +438,7 @@ const roundTeamDna: Round = {
       prompt: "Build our perfect team.",
       discussPrompt: "Is this who we are today — or who we want to become?",
       values: TEAM_VALUES,
-      pointsTotal: 100,
+      selection: { mode: "points", total: 100 },
     },
   ],
 };
@@ -437,6 +476,7 @@ const roundOurVoice: Round = {
       prompt: "What ONE thing would make our team stronger?",
       discussPrompt: "Did we pick the thing we need — or the thing that's easiest to say?",
       options: STRONGER_OPTIONS,
+      selection: { mode: "single" },
     },
     {
       id: "r6q2",
@@ -447,7 +487,7 @@ const roundOurVoice: Round = {
       prompt: "Our team would be stronger if we…",
       discussPrompt: "Which of these sentences do we want to still be true next quarter?",
       textPrefix: "Our team would be stronger if we…",
-      maxWords: 6,
+      selection: { mode: "text", maxWords: 6 },
     },
   ],
 };
@@ -551,6 +591,18 @@ export function stepLabel(index: number): string {
   const q = getQuestion(step.questionId);
   const r = getRound(step.roundId);
   return `Round ${r?.index ?? "?"} · ${q?.short ?? ""}`;
+}
+
+/** True when a question records the inverse of what the participant picked. */
+export function storesExcluded(q: Question): boolean {
+  return q.selection.mode === "multiple" && q.selection.store === "excluded";
+}
+
+/** How many options a participant must pick. Null for non-option questions. */
+export function selectionBounds(q: Question): { min: number; max: number } | null {
+  if (q.selection.mode === "single") return { min: 1, max: 1 };
+  if (q.selection.mode === "multiple") return { min: q.selection.min, max: q.selection.max };
+  return null;
 }
 
 /** Options for a question, whatever shape they take. */
